@@ -48,6 +48,16 @@ PARAM_DEFINE_FLOAT(LPE_SNR_Z, 0.2f);
 PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.03f);
 
 /**
+ * Lidar offset in the z direction
+ *
+ * @group Local Position Estimator
+ * @unit m
+ * @min -1
+ * @max 1
+ */
+PARAM_DEFINE_FLOAT(LPE_LDR_OFF, -0.12224258f);
+
+/**
  * Accelerometer xy standard deviation
  *
  * Data sheet sqrt(Noise power) = 150ug/sqrt(Hz)

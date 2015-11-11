@@ -207,6 +207,7 @@ private:
 	BlockParamFloat  _sonar_z_stddev;
 
 	BlockParamFloat  _lidar_z_stddev;
+	BlockParamFloat  _lidar_z_offset;
 
 	BlockParamFloat  _accel_xy_stddev;
 	BlockParamFloat  _accel_z_stddev;

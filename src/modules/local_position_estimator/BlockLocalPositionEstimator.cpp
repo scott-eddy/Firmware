@@ -52,6 +52,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_flow_xy_stddev(this, "FLW_XY"),
 	_sonar_z_stddev(this, "SNR_Z"),
 	_lidar_z_stddev(this, "LDR_Z"),
+	_lidar_z_offset(this, "LDR_OFF"),
 	_accel_xy_stddev(this, "ACC_XY"),
 	_accel_z_stddev(this, "ACC_Z"),
 	_baro_stddev(this, "BAR_Z"),
@@ -513,7 +514,7 @@ void BlockLocalPositionEstimator::initLidar()
 
 	if (!_lidarInitialized && valid) {
 		// increament sums for mean
-		_lidarAltHome += _sub_lidar->get().current_distance;
+		_lidarAltHome += _sub_lidar->get().current_distance + _lidar_z_offset.get();
 
 		if (_lidarInitCount++ > REQ_INIT_COUNT) {
 			_lidarAltHome /= _lidarInitCount;
@@ -1117,7 +1118,8 @@ void BlockLocalPositionEstimator::correctBaro()
 void BlockLocalPositionEstimator::correctLidar()
 {
 
-	float d = _sub_lidar->get().current_distance;
+	float d_raw = _sub_lidar->get().current_distance;
+	float d_off = d_raw + _lidar_z_offset.get();
 
 	Matrix<float, n_y_lidar, n_x> C;
 	C.setZero();
@@ -1138,7 +1140,7 @@ void BlockLocalPositionEstimator::correctLidar()
 
 	Vector<float, n_y_lidar> y;
 	y.setZero();
-	y(0) = (d - _lidarAltHome) *
+	y(0) = (d_off - _lidarAltHome) *
 	       cosf(_sub_att.get().roll) *
 	       cosf(_sub_att.get().pitch);
 
@@ -1150,8 +1152,8 @@ void BlockLocalPositionEstimator::correctLidar()
 	float beta = sqrtf((r.transpose() * (S_I * r))(0, 0));
 
 	// zero is an error code for the lidar
-	if (d < _sub_lidar->get().min_distance ||
-	    d > _sub_lidar->get().max_distance) {
+	if (d_raw < _sub_lidar->get().min_distance ||
+	    d_raw > _sub_lidar->get().max_distance) {
 		if (!_lidarFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] lidar out of range");
 			warnx("[lpe] lidar out of range");

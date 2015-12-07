@@ -209,6 +209,16 @@ PARAM_DEFINE_FLOAT(LPE_PN_V, 0.0f);
 PARAM_DEFINE_FLOAT(LPE_PN_B, 1e-8f);
 
 /**
+ * Terrain altitude propagation process noise power (variance*sampling rate).
+ *
+ * @group Local Position Estimator
+ * @unit (m/s)-s
+ * @min 0
+ * @max 1
+ */
+PARAM_DEFINE_FLOAT(LPE_PN_T, 0.0f);
+
+/**
  * Fault detection threshold, for chi-squared dist.
  *
  * TODO add separate params for 1 dof, 3 dof, and 6 dof beta

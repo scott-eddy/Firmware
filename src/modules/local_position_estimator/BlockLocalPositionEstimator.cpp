@@ -70,6 +70,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_pn_p_noise_power(this, "PN_P"),
 	_pn_v_noise_power(this, "PN_V"),
 	_pn_b_noise_power(this, "PN_B"),
+	_pn_t_noise_power(this, "PN_T"),
 
 	// misc
 	_polls(),
@@ -127,6 +128,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// status
 	_canEstimateXY(false),
 	_canEstimateZ(false),
+	_canEstimateTerrain(false),
 	_xyTimeout(false),
 
 	// faults
@@ -285,6 +287,8 @@ void BlockLocalPositionEstimator::update()
 		(_flowInitialized && !_flowFault) ||
 		(_visionInitialized && !_visionTimeout && !_visionFault) ||
 		(_mocapInitialized && !_mocapTimeout && !_mocapFault);
+	_canEstimateTerrain = (_lidarInitialized && !_lidarFault) ||
+			      (_sonarInitialized && !_sonarFault);
 
 	if (_canEstimateXY) {
 		_time_last_xy = hrt_absolute_time();
@@ -402,10 +406,10 @@ void BlockLocalPositionEstimator::update()
 
 	if (mocapUpdated) {
 		if (!_mocapInitialized) {
-			initmocap();
+			initMocap();
 
 		} else {
-			correctmocap();
+			correctMocap();
 		}
 	}
 
@@ -609,7 +613,7 @@ void BlockLocalPositionEstimator::initVision()
 	}
 }
 
-void BlockLocalPositionEstimator::initmocap()
+void BlockLocalPositionEstimator::initMocap()
 {
 	// collect mocap data
 	if (!_mocapInitialized) {
@@ -655,11 +659,10 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().ref_lat = _map_ref.lat_rad * 180 / M_PI;
 		_pub_lpos.get().ref_lon = _map_ref.lon_rad * 180 / M_PI;
 		_pub_lpos.get().ref_alt = _sub_home.get().alt;
-		// TODO, terrain alt
-		_pub_lpos.get().dist_bottom = -_x(X_z);
-		_pub_lpos.get().dist_bottom_rate = -_x(X_vz);
-		_pub_lpos.get().surface_bottom_timestamp = 0;
-		_pub_lpos.get().dist_bottom_valid = true;
+		_pub_lpos.get().dist_bottom = _x(X_tz);
+		_pub_lpos.get().dist_bottom_rate = -_x(X_vz); // XXX fix this
+		_pub_lpos.get().surface_bottom_timestamp = _time_last_offset_changed;
+		_pub_lpos.get().dist_bottom_valid = _canEstimateTerrain;
 		_pub_lpos.get().eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 		_pub_lpos.get().epv = sqrtf(_P(X_z, X_z));
 		_pub_lpos.update();
@@ -718,8 +721,8 @@ void BlockLocalPositionEstimator::publishGlobalPos()
 		_pub_gpos.get().yaw = _sub_att.get().yaw;
 		_pub_gpos.get().eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 		_pub_gpos.get().epv = sqrtf(_P(X_z, X_z));
-		_pub_gpos.get().terrain_alt = 0;
-		_pub_gpos.get().terrain_alt_valid = false;
+		_pub_gpos.get().terrain_alt = _x(X_tz);
+		_pub_gpos.get().terrain_alt_valid = _canEstimateTerrain;
 		_pub_gpos.get().dead_reckoning = !_canEstimateXY && !_xyTimeout;
 		_pub_gpos.get().pressure_alt = _sub_sensor.get().baro_alt_meter[0];
 		_pub_gpos.update();
@@ -749,6 +752,7 @@ void BlockLocalPositionEstimator::initP()
 	_P(X_bx, X_bx) = 1e-6;
 	_P(X_by, X_by) = 1e-6;
 	_P(X_bz, X_bz) = 1e-6;
+	_P(X_tz, X_tz) = 1;
 }
 
 void BlockLocalPositionEstimator::predict()
@@ -813,6 +817,7 @@ void BlockLocalPositionEstimator::predict()
 	Q(X_vx, X_vx) = _pn_v_noise_power.get();
 	Q(X_vy, X_vy) = _pn_v_noise_power.get();
 	Q(X_vz, X_vz) = _pn_v_noise_power.get();
+	Q(X_tz, X_tz) = _pn_t_noise_power.get();
 
 	// technically, the noise is in the body frame,
 	// but the components are all the same, so
@@ -836,6 +841,10 @@ void BlockLocalPositionEstimator::predict()
 	if (!_canEstimateZ) {
 		dx(X_z) = 0;
 		dx(X_vz) = 0;
+	}
+	
+	if (!_canEstimateTerrain) {
+		dx(X_tz) = 0;
 	}
 
 	// propagate
@@ -892,18 +901,18 @@ void BlockLocalPositionEstimator::correctFlow()
 		// yaw rotation compensation
 		float yaw_comp[2] = {0.0f, 0.0f};
 
-		yaw_comp[0] = _flow_board_x_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
-		yaw_comp[1] =  - _flow_board_y_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
+		yaw_comp[0] = - _flow_board_y_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
+		yaw_comp[1] =   _flow_board_x_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
 
 		// calculate velocity over ground
 		flow_speed[0] = ((_sub_flow.get().pixel_flow_x_integral - _sub_flow.get().gyro_x_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f)
 				 + _flowGyroBias[0] - yaw_comp[0]) *
-				_x(X_z);		// TODO use terrain estimate here
+				_x(X_tz);
 		flow_speed[1] = ((_sub_flow.get().pixel_flow_y_integral - _sub_flow.get().gyro_y_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f) -
 				 + _flowGyroBias[1] - yaw_comp[1]) *
-				_x(X_z);		// TODO use terrain estimate here
+				_x(X_tz);
 
 	} else {
 		flow_speed[0] = 0;
@@ -1005,7 +1014,7 @@ void BlockLocalPositionEstimator::correctSonar()
 	// sonar measurement matrix and noise matrix
 	Matrix<float, n_y_sonar, n_x> C;
 	C.setZero();
-	C(Y_sonar_z, X_z) = -1;
+	C(Y_lidar_z, X_tz) = 1; // measured terrain altitude
 
 	// use parameter covariance unless sensor provides reasonable value
 	Matrix<float, n_y_sonar, n_y_sonar> R;
@@ -1124,8 +1133,7 @@ void BlockLocalPositionEstimator::correctLidar()
 
 	Matrix<float, n_y_lidar, n_x> C;
 	C.setZero();
-	C(Y_lidar_z, X_z) = -1; // measured altitude,
-	// negative down dir.
+	C(Y_lidar_z, X_tz) = 1; // measured terrain altitude
 
 	// use parameter covariance unless sensor provides reasonable value
 	Matrix<float, n_y_lidar, n_y_lidar> R;
@@ -1354,7 +1362,7 @@ void BlockLocalPositionEstimator::correctVision()
 	_time_last_vision_p = _sub_vision_pos.get().timestamp_boot;
 }
 
-void BlockLocalPositionEstimator::correctmocap()
+void BlockLocalPositionEstimator::correctMocap()
 {
 
 	Vector<float, n_y_mocap> y;

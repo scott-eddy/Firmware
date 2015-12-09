@@ -220,17 +220,6 @@ PARAM_DEFINE_FLOAT(INAV_FLOW_K, 0.15f);
 PARAM_DEFINE_FLOAT(INAV_FLOW_Q_MIN, 0.3f);
 
 /**
- * Weight for lidar filter
- *
- * Lidar filter detects spikes on lidar measurements and used to detect new surface level.
- *
- * @min 0.0
- * @max 1.0
- * @group Position Estimator INAV
- */
-PARAM_DEFINE_FLOAT(INAV_LIDAR_FILT, 0.05f);
-
-/**
  * Sonar maximal error for new surface
  *
  * If sonar measurement error is larger than this value it skiped (spike) or accepted as new surface level (if offset is stable).
@@ -325,6 +314,17 @@ PARAM_DEFINE_FLOAT(INAV_FLOW_DIST_Y, 0.0f);
 PARAM_DEFINE_FLOAT(INAV_DISAB_MOCAP, 0);
 
 /**
+ * Enable LIDAR for altitude estimation
+ *
+ * Enable LIDAR for altitude estimation
+ *
+ * @min 0
+ * @max 1
+ * @group Position Estimator INAV
+ */
+PARAM_DEFINE_FLOAT(INAV_LIDAR_EST, 0);
+
+/**
  * Disable vision input
  *
  * Set to the appropriate key (328754) to disable vision input.
@@ -366,7 +366,6 @@ int inav_parameters_init(struct position_estimator_inav_param_handles *h)
 	h->w_acc_bias = param_find("INAV_W_ACC_BIAS");
 	h->flow_k = param_find("INAV_FLOW_K");
 	h->flow_q_min = param_find("INAV_FLOW_Q_MIN");
-	h->lidar_filt = param_find("INAV_LIDAR_FILT");
 	h->lidar_err = param_find("INAV_LIDAR_ERR");
 	h->land_t = param_find("INAV_LAND_T");
 	h->land_disp = param_find("INAV_LAND_DISP");
@@ -376,6 +375,7 @@ int inav_parameters_init(struct position_estimator_inav_param_handles *h)
 	h->flow_module_offset_x = param_find("INAV_FLOW_DIST_X");
 	h->flow_module_offset_y = param_find("INAV_FLOW_DIST_Y");
 	h->disable_mocap = param_find("INAV_DISAB_MOCAP");
+	h->enable_lidar_alt_est = param_find("INAV_LIDAR_EST");
 
 	return 0;
 }
@@ -397,7 +397,6 @@ int inav_parameters_update(const struct position_estimator_inav_param_handles *h
 	param_get(h->w_acc_bias, &(p->w_acc_bias));
 	param_get(h->flow_k, &(p->flow_k));
 	param_get(h->flow_q_min, &(p->flow_q_min));
-	param_get(h->lidar_filt, &(p->lidar_filt));
 	param_get(h->lidar_err, &(p->lidar_err));
 	param_get(h->land_t, &(p->land_t));
 	param_get(h->land_disp, &(p->land_disp));
@@ -407,6 +406,7 @@ int inav_parameters_update(const struct position_estimator_inav_param_handles *h
 	param_get(h->flow_module_offset_x, &(p->flow_module_offset_x));
 	param_get(h->flow_module_offset_y, &(p->flow_module_offset_y));
 	param_get(h->disable_mocap, &(p->disable_mocap));
+	param_get(h->enable_lidar_alt_est, &(p->enable_lidar_alt_est));
 
 	return 0;
 }

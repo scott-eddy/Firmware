@@ -193,8 +193,9 @@ int LidarLitePWM::measure()
 	/* TODO: set proper ID */
 	_range.id = 0;
 
-	/* Due to a bug in older versions of the LidarLite firmware, we have to reset sensor on (distance == 0) */
-	if (_range.current_distance <= 0.0f) {
+	/* Due to a bug in older versions of the LidarLite firmware, we have to reset sensor on (distance == 0) 
+	FOR NOAMAD I'm hacking around bug of bad reading occuring every so often of distances greater than 5m +*/
+	if (_range.current_distance <= 0.0f || _range.current_distance >= 5.0f) {
 		perf_count(_sensor_zero_resets);
 		perf_end(_sample_perf);
 		return reset_sensor();

@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <systemlib/err.h>
 
-static const int 		MIN_FLOW_QUALITY = 50;
+//static const int 		MIN_FLOW_QUALITY = 0;
 static const int 		REQ_INIT_COUNT = 75;
 
 static const uint32_t 		VISION_POSITION_TIMEOUT = 500000;
@@ -65,6 +65,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_no_vision(this, "NO_VISION"),
 	_beta_max(this, "BETA_MAX"),
 	_mocap_p_stddev(this, "VIC_P"),
+	_flow_min_qual(this, "FLW_MIN_QUAL"),
 	_flow_board_x_offs(NULL, "SENS_FLOW_X_OFF"),
 	_flow_board_y_offs(NULL, "SENS_FLOW_Y_OFF"),
 	_pn_p_noise_power(this, "PN_P"),
@@ -572,7 +573,7 @@ void BlockLocalPositionEstimator::initFlow()
 		if (_flowInitCount++ > REQ_INIT_COUNT) {
 			_flowMeanQual /= _flowInitCount;
 
-			if (_flowMeanQual < MIN_FLOW_QUALITY) {
+			if (_flowMeanQual < _flow_min_qual.get()) {
 				// retry initialisation till we have better flow data
 				warnx("[lpe] flow quality bad, retrying init : %d",
 				      int(_flowMeanQual));
@@ -971,7 +972,7 @@ void BlockLocalPositionEstimator::correctFlow()
 	// fault detection
 	float beta = sqrtf((r.transpose() * (S_I * r))(0, 0));
 
-	if (_sub_flow.get().quality < MIN_FLOW_QUALITY) {
+	if (_sub_flow.get().quality < _flow_min_qual.get()) {
 		if (!_flowFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] bad flow data ");
 			warnx("[lpe] bad flow data ");

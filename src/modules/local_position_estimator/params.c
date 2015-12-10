@@ -179,6 +179,16 @@ PARAM_DEFINE_INT32(LPE_NO_VISION, 0);
 PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
 
 /**
+ * Minimum flow quality
+ *
+ * @group Local Position Estimator
+ * @unit [none]
+ * @min 1
+ * @max 256
+ */
+PARAM_DEFINE_INT32(LPE_FLW_MIN_QUAL,30);
+
+/**
  * Position propagation process noise power (variance*sampling rate).
  *
  * @group Local Position Estimator

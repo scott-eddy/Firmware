@@ -228,6 +228,7 @@ private:
 
 	BlockParamFloat  _mocap_p_stddev;
 
+	BlockParamInt	 _flow_min_qual;
 	BlockParamFloat  _flow_board_x_offs;
 	BlockParamFloat  _flow_board_y_offs;
 

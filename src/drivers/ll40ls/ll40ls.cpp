@@ -326,7 +326,7 @@ test(const bool use_i2c, const int bus)
 	}
 
 	/* read the sensor 5 times and report each value */
-	for (unsigned i = 0; i < 5; i++) {
+	for (unsigned i = 0; i < 20; i++) {
 		struct pollfd fds;
 
 		/* wait for data to be ready */

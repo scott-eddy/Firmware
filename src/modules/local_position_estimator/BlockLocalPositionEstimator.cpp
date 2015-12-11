@@ -532,6 +532,7 @@ void BlockLocalPositionEstimator::initLidar()
 			_lidarInitialized = true;
 		}
 	}
+	
 }
 
 void BlockLocalPositionEstimator::initSonar()
@@ -905,15 +906,26 @@ void BlockLocalPositionEstimator::correctFlow()
 		yaw_comp[0] = - _flow_board_y_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
 		yaw_comp[1] =   _flow_board_x_offs.get() * (flow_gyrospeed[2] - _flowGyroBias[2]);
 
+		// see if we have a good lidar reading
+		float d = _sub_lidar->get().current_distance;
+		static float monocular_scaling;
+		if (d < _sub_lidar->get().min_distance ||
+	    	    d > _sub_lidar->get().max_distance) {
+			monocular_scaling = _x(X_z);//We'll simply use our z estimate of the state here
+		}else{
+			monocular_scaling = d*cosf(_sub_att.get().roll) *
+	       		cosf(_sub_att.get().pitch);
+		}
+
 		// calculate velocity over ground
 		flow_speed[0] = ((_sub_flow.get().pixel_flow_x_integral - _sub_flow.get().gyro_x_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f)
 				 + _flowGyroBias[0] - yaw_comp[0]) *
-				_x(X_tz);
+				monocular_scaling;//used to be tz
 		flow_speed[1] = ((_sub_flow.get().pixel_flow_y_integral - _sub_flow.get().gyro_y_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f) -
 				 + _flowGyroBias[1] - yaw_comp[1]) *
-				_x(X_tz);
+				monocular_scaling;//used to be tz
 
 	} else {
 		flow_speed[0] = 0;
@@ -1015,7 +1027,7 @@ void BlockLocalPositionEstimator::correctSonar()
 	// sonar measurement matrix and noise matrix
 	Matrix<float, n_y_sonar, n_x> C;
 	C.setZero();
-	C(Y_lidar_z, X_tz) = 1; // measured terrain altitude
+	C(Y_sonar_z, X_tz) = 1; // measured terrain altitude
 
 	// use parameter covariance unless sensor provides reasonable value
 	Matrix<float, n_y_sonar, n_y_sonar> R;

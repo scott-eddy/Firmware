@@ -226,6 +226,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_distance_sensor(msg);
 		break;
 
+	case MAVLINK_MSG_ID_PRESSUREWING_DIGITAL:
+		handle_message_pressure_wing_digital(msg);
+
 	default:
 		break;
 	}

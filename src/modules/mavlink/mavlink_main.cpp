@@ -1768,6 +1768,10 @@ Mavlink::task_main(int argc, char *argv[])
 		configure_stream("ALTITUDE", 10.0f);
 		configure_stream("VISION_POSITION_NED", 10.0f);
 
+	case	MAVLINK_MODE_CUSTOM:
+		configure_stream("SYS_STATUS", 1.0f);
+		//configure_steram("WING_PRESSURES",500.0f);
+
 	default:
 		break;
 	}

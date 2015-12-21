@@ -74,6 +74,7 @@
 #include <uORB/topics/vehicle_force_setpoint.h>
 #include <uORB/topics/time_offset.h>
 #include <uORB/topics/distance_sensor.h>
+#include <uORB/topics/pressure_wing.h>
 
 #include "mavlink_ftp.h"
 
@@ -137,6 +138,7 @@ private:
 	void handle_message_hil_gps(mavlink_message_t *msg);
 	void handle_message_hil_state_quaternion(mavlink_message_t *msg);
 	void handle_message_distance_sensor(mavlink_message_t *msg);
+	void handle_message_pressure_wing_digital(mavlink_message_t *msg);
 
 	void *receive_thread(void *arg);
 
@@ -193,6 +195,7 @@ private:
 	orb_advert_t _manual_pub;
 	orb_advert_t _land_detector_pub;
 	orb_advert_t _time_offset_pub;
+	orb_advert_t _pressure_wing_pub;
 	int _control_mode_sub;
 	int _hil_frames;
 	uint64_t _old_timestamp;
@@ -208,6 +211,7 @@ private:
 	double _time_offset_avg_alpha;
 	uint64_t _time_offset;
 	int	_orb_class_instance;
+	struct _pressure_wing_s;
 
 	static constexpr unsigned MOM_SWITCH_COUNT = 8;
 

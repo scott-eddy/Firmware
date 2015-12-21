@@ -59,6 +59,7 @@
 #include <uORB/topics/att_pos_mocap.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <uORB/topics/vehicle_rates_setpoint.h>
+#include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/actuator_outputs.h>
@@ -78,6 +79,8 @@
 #include <drivers/drv_pwm_output.h>
 #include <systemlib/err.h>
 #include <mavlink/mavlink_log.h>
+
+#include <mathlib/mathlib.h>
 
 #include "mavlink_messages.h"
 #include "mavlink_main.h"
@@ -917,7 +920,7 @@ protected:
 		if (updated) {
 			mavlink_vfr_hud_t msg;
 
-			msg.airspeed = airspeed.true_airspeed_m_s;
+			msg.airspeed = airspeed.indicated_airspeed_m_s;
 			msg.groundspeed = sqrtf(pos.vel_n * pos.vel_n + pos.vel_e * pos.vel_e);
 			msg.heading = _wrap_2pi(att.yaw) * M_RAD_TO_DEG_F;
 			msg.throttle = armed.armed ? act.control[3] * 100.0f : 0.0f;
@@ -1216,6 +1219,69 @@ protected:
 	}
 };
 
+class MavlinkStreamVisionPositionNED : public MavlinkStream
+{
+public:
+    const char *get_name() const
+    {
+        return MavlinkStreamVisionPositionNED::get_name_static();
+    }
+
+    static const char *get_name_static()
+    {
+        return "VISION_POSITION_NED";
+    }
+
+    uint8_t get_id()
+    {
+        return MAVLINK_MSG_ID_VISION_POSITION_ESTIMATE;
+    }
+
+    static MavlinkStream *new_instance(Mavlink *mavlink)
+    {
+        return new MavlinkStreamVisionPositionNED(mavlink);
+    }
+
+    unsigned get_size()
+    {
+        return MAVLINK_MSG_ID_VISION_POSITION_ESTIMATE_LEN + MAVLINK_NUM_NON_PAYLOAD_BYTES;
+    }
+private:
+
+    MavlinkOrbSubscription *_pos_sub;
+    uint64_t _pos_time;
+
+    /* do not allow top copying this class */
+    MavlinkStreamVisionPositionNED(MavlinkStreamVisionPositionNED &);
+    MavlinkStreamVisionPositionNED& operator = (const MavlinkStreamVisionPositionNED &);
+
+protected:
+    explicit MavlinkStreamVisionPositionNED(Mavlink *mavlink) : MavlinkStream(mavlink),
+        _pos_sub(_mavlink->add_orb_subscription(ORB_ID(vision_position_estimate))),
+        _pos_time(0)
+    {}
+
+    void send(const hrt_abstime t)
+    {
+        struct vision_position_estimate_s vpos;
+        memset(&vpos, 0, sizeof(vpos));
+
+        if (_pos_sub->update(&_pos_time, &vpos)) {
+            mavlink_vision_position_estimate_t vmsg;
+            vmsg.usec = vpos.timestamp_boot / 1000;
+            vmsg.x = vpos.x;
+            vmsg.y = vpos.y;
+            vmsg.z = vpos.z;
+            math::Quaternion q(vpos.q);
+            math::Vector<3> rpy = q.to_euler();
+            vmsg.roll = rpy(0);
+            vmsg.pitch = rpy(1);
+            vmsg.yaw = rpy(2);
+
+            _mavlink->send_message(MAVLINK_MSG_ID_VISION_POSITION_ESTIMATE, &vmsg);
+        }
+    }
+};
 
 class MavlinkStreamLocalPositionNED : public MavlinkStream
 {
@@ -1735,7 +1801,7 @@ protected:
 
 			float out[8];
 
-			const float pwm_center = (PWM_HIGHEST_MAX + PWM_LOWEST_MIN) / 2;
+			const float pwm_center = (PWM_DEFAULT_MAX + PWM_DEFAULT_MIN) / 2;
 
 			unsigned system_type = _mavlink->get_system_type();
 
@@ -1773,14 +1839,14 @@ protected:
 				}
 
 				for (unsigned i = 0; i < 8; i++) {
-					if (act.output[i] > PWM_LOWEST_MIN / 2) {
+					if (act.output[i] > PWM_DEFAULT_MIN / 2) {
 						if (i < n) {
 							/* scale PWM out 900..2100 us to 0..1 for rotors */
-							out[i] = (act.output[i] - PWM_LOWEST_MIN) / (PWM_HIGHEST_MAX - PWM_LOWEST_MIN);
+							out[i] = (act.output[i] - PWM_DEFAULT_MIN) / (PWM_DEFAULT_MAX - PWM_DEFAULT_MIN);
 
 						} else {
 							/* scale PWM out 900..2100 us to -1..1 for other channels */
-							out[i] = (act.output[i] - pwm_center) / ((PWM_HIGHEST_MAX - PWM_LOWEST_MIN) / 2);
+							out[i] = (act.output[i] - pwm_center) / ((PWM_DEFAULT_MAX - PWM_DEFAULT_MIN) / 2);
 						}
 
 					} else {
@@ -1793,14 +1859,14 @@ protected:
 				/* fixed wing: scale throttle to 0..1 and other channels to -1..1 */
 
 				for (unsigned i = 0; i < 8; i++) {
-					if (act.output[i] > PWM_LOWEST_MIN / 2) {
+					if (act.output[i] > PWM_DEFAULT_MIN / 2) {
 						if (i != 3) {
 							/* scale PWM out 900..2100 us to -1..1 for normal channels */
-							out[i] = (act.output[i] - pwm_center) / ((PWM_HIGHEST_MAX - PWM_LOWEST_MIN) / 2);
+							out[i] = (act.output[i] - pwm_center) / ((PWM_DEFAULT_MAX - PWM_DEFAULT_MIN) / 2);
 
 						} else {
 							/* scale PWM out 900..2100 us to 0..1 for throttle */
-							out[i] = (act.output[i] - PWM_LOWEST_MIN) / (PWM_HIGHEST_MAX - PWM_LOWEST_MIN);
+							out[i] = (act.output[i] - PWM_DEFAULT_MIN) / (PWM_DEFAULT_MAX - PWM_DEFAULT_MIN);
 						}
 
 					} else {
@@ -1947,6 +2013,9 @@ protected:
 			msg.vx = pos_sp.vx;
 			msg.vy = pos_sp.vy;
 			msg.vz = pos_sp.vz;
+			msg.afx = pos_sp.acc_x;
+			msg.afy = pos_sp.acc_y;
+			msg.afz = pos_sp.acc_z;
 
 			_mavlink->send_message(MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED, &msg);
 		}
@@ -2644,6 +2713,7 @@ const StreamListItem *streams_list[] = {
 	new StreamListItem(&MavlinkStreamTimesync::new_instance, &MavlinkStreamTimesync::get_name_static),
 	new StreamListItem(&MavlinkStreamGlobalPositionInt::new_instance, &MavlinkStreamGlobalPositionInt::get_name_static),
 	new StreamListItem(&MavlinkStreamLocalPositionNED::new_instance, &MavlinkStreamLocalPositionNED::get_name_static),
+	new StreamListItem(&MavlinkStreamVisionPositionNED::new_instance, &MavlinkStreamVisionPositionNED::get_name_static),
 	new StreamListItem(&MavlinkStreamLocalPositionNEDCOV::new_instance, &MavlinkStreamLocalPositionNEDCOV::get_name_static),
 	new StreamListItem(&MavlinkStreamAttPosMocap::new_instance, &MavlinkStreamAttPosMocap::get_name_static),
 	new StreamListItem(&MavlinkStreamHomePosition::new_instance, &MavlinkStreamHomePosition::get_name_static),

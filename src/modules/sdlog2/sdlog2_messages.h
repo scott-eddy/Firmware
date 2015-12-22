@@ -508,6 +508,27 @@ struct log_FFLW_s {
 	float gyro_z_bias;
 };
 
+/* --- HCEL - Pressure wing data */
+#define LOG_DPL1_MSG 49
+struct log_DPL1_s {
+	uint16_t digital_pressure_left1[10];
+};
+
+#define LOG_DPL2_MSG 50
+struct log_DPL2_s {
+	uint16_t digital_pressure_left2[10];
+};
+
+#define LOG_DPR1_MSG 51
+struct log_DPR1_s {
+	uint16_t digital_pressure_right1[10];
+};
+
+#define LOG_DPR2_MSG 52
+struct log_DPR2_s {
+	uint16_t digital_pressure_right2[10];
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -581,6 +602,10 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(TSYN, "Q", 		"TimeOffset"),
 	LOG_FORMAT(MACS, "fff", "RRint,PRint,YRint"),
 	LOG_FORMAT(FFLW, "ffffffffff", "XIntg,YIntg,VelX,VelY,RateX,RateY,RateZ,BiasX,BiasY,BiasZ"),
+	LOG_FORMAT(DPL1, "HHHHHHHHHH", "L1,L2,L3,L4,L5,L6,L7,L8,L9,L10"),
+	LOG_FORMAT(DPL2, "HHHHHHHHHH", "L11,L12,L13,L14,L15,L16,L17,L18,L19,L20"),
+	LOG_FORMAT(DPR1, "HHHHHHHHHH","R1,R2,R3,R4,R5,R6,R7,R8,R9,R10"),
+	LOG_FORMAT(DPR2, "HHHHHHHHHH","R11,R12,R13,R14,R15,R16,R17,R18,R19,R20"),
 
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */

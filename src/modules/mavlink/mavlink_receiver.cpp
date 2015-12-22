@@ -68,6 +68,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <poll.h>
+#include <algorithm> 
 
 #include <mathlib/mathlib.h>
 
@@ -125,6 +126,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_manual_pub(nullptr),
 	_land_detector_pub(nullptr),
 	_time_offset_pub(nullptr),
+	_pressure_wing_pub(nullptr),
 	_control_mode_sub(orb_subscribe(ORB_ID(vehicle_control_mode))),
 	_hil_frames(0),
 	_old_timestamp(0),
@@ -591,6 +593,28 @@ MavlinkReceiver::handle_message_distance_sensor(mavlink_message_t *msg)
 	} else {
 		orb_publish(ORB_ID(distance_sensor), _distance_sensor_pub, &d);
 	}
+}
+
+void
+MavlinkReceiver::handle_message_pressure_wing_digital(mavlink_message_t *msg)
+{
+	/* Put the twenty ought digital pressure readings into an array */
+	mavlink_pressurewing_digital_t pressure_wing_digital;
+	mavlink_msg_pressurewing_digital_decode(msg, &pressure_wing_digital);
+	struct pressure_wing_s pressure_wing;
+
+	std::copy(pressure_wing.digital_pressure_left,pressure_wing.digital_pressure_left + 20, pressure_wing_digital.digital_pressure_left);
+	std::copy(pressure_wing.digital_pressure_right,pressure_wing.digital_pressure_right + 20, pressure_wing_digital.digital_pressure_right);
+	pressure_wing.timestamp = hrt_absolute_time();
+	
+	if (_pressure_wing_pub == nullptr) {
+		_pressure_wing_pub = orb_advertise_multi(ORB_ID(pressure_wing), &pressure_wing,
+								     &_orb_class_instance, ORB_PRIO_HIGH);
+
+	} else {
+		orb_publish(ORB_ID(pressure_wing), _pressure_wing_pub, &pressure_wing);
+	}
+	
 }
 
 void
